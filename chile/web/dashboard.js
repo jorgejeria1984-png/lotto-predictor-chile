@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 const token=document.querySelector('meta[name="local-token"]').content;
 const fmt=n=>Number(n).toFixed(3);
-const names={historica:'Frecuencia histórica',reciente_10:'Frecuencia 10',reciente_25:'Frecuencia 25',reciente_50:'Frecuencia 50',reciente_100:'Frecuencia 100',exponencial:'Exponencial',rezago:'Rezago',momentum:'Momentum',bayes:'Bayes',hibrida:'Híbrida',pares:'Coocurrencias',logit_online:'Regresión logística',evolutivo_online:'Evolutivo',lstm_online:'LSTM',azar:'Azar simulado'};
+const names={historica:'Frecuencia histórica',reciente_10:'Frecuencia 10',reciente_25:'Frecuencia 25',reciente_50:'Frecuencia 50',reciente_100:'Frecuencia 100',exponencial:'Exponencial',rezago:'Rezago',momentum:'Momentum',bayes:'Bayes',hibrida:'Híbrida',pares:'Coocurrencias',logit_online:'Regresión logística',evolutivo_online:'Evolutivo',hedge_online:'Híbrido adaptativo',lstm_online:'LSTM',azar:'Azar simulado'};
 const label=s=>names[s]||s;
 const pad=n=>String(n).padStart(2,'0');
 const nums=arr=>arr.map(pad).join(' · ');
@@ -79,6 +79,7 @@ function render(d){
   const flagged=d.diagnostico_sesgo.filter(x=>x.alerta);
   $('bias').textContent=flagged.length?'Frecuencias que requieren investigación (Bonferroni): '+flagged.map(x=>pad(x.numero)+' (p='+x.p_bonferroni.toFixed(4)+')').join(', ')+'. No prueba sesgo físico.':'No se detectaron desviaciones marginales significativas con la corrección Bonferroni. Esto no demuestra ausencia de sesgo físico.';
   frequencies();
+  document.dispatchEvent(new CustomEvent('chile-analysis',{detail:d}));
 }
 async function history(){
   const data=await api('history?game='+$('game').value+'&offset='+offset+'&limit=25');
@@ -106,7 +107,7 @@ async function load(refresh=false){
     return 'Historial local cargado. Próximo sorteo sujeto a calendario oficial.';
   });
 }
-$('game').onchange=()=>{offset=0;resetStage();$('verified').checked=false;$('deadline').value='';result=null;for(const id of ['metrics','balls','ranking','comparison','heat','freq','history','ledger','strategy'])$(id).replaceChildren();for(const id of ['strategy-note','bias','audit','page','ledger-summary'])$(id).textContent='';load();};
+$('game').onchange=()=>{offset=0;resetStage();$('verified').checked=false;$('deadline').value='';result=null;document.dispatchEvent(new Event('chile-reset'));for(const id of ['metrics','balls','ranking','comparison','heat','freq','history','ledger','strategy'])$(id).replaceChildren();for(const id of ['strategy-note','bias','audit','page','ledger-summary'])$(id).textContent='';load();};
 $('reload').onclick=()=>load(true);
 $('lstm').onchange=()=>load();
 $('strategy').onchange=showLine;
