@@ -21,7 +21,7 @@ def connect(path):
     db.executescript("""
     CREATE TABLE IF NOT EXISTS forecasts (
        game TEXT NOT NULL, target INTEGER NOT NULL, created TEXT NOT NULL,
-       deadline TEXT NOT NULL, cutoff INTEGER NOT NULL, history_hash TEXT NOT NULL,
+       deadline TEXT NOT NULL, cutoff INTEGER NOT NULL, history_start INTEGER NOT NULL, history_hash TEXT NOT NULL,
        strategy TEXT NOT NULL, version TEXT NOT NULL, payload TEXT NOT NULL,
        PRIMARY KEY(game,target));
     CREATE TABLE IF NOT EXISTS results (
@@ -37,7 +37,10 @@ def connect(path):
     return db
 
 def freeze(db,game,history,deadline,now=None,lstm=False):
-    now=now or datetime.now(timezone.utc)
+    clock=now
+    now=clock or datetime.now(timezone.utc)
+    if not history:
+        raise ValueError('Empty history')
     if deadline.tzinfo is None or now.tzinfo is None or deadline<=now:
         raise ValueError('Deadline must be a verified future draw time with UTC offset')
     if deadline.date()<=history[-1].date:
@@ -47,27 +50,28 @@ def freeze(db,game,history,deadline,now=None,lstm=False):
         raise ValueError('Forecast already frozen')
     # Recalculate only from the supplied contiguous prefix.
     report=replay(history,PROFILES[game],lstm=lstm,simulations=1000)
-    created=now if now is not None else datetime.now(timezone.utc)
-    row=(game,target,created.astimezone(timezone.utc).isoformat(),deadline.isoformat(),history[-1].number,digest(history),report['estrategia'],VERSION,canonical(report['lineas']))
+    created=clock or datetime.now(timezone.utc)
+    if created>=deadline:
+        raise ValueError('Analysis finished after deadline; forecast not recorded')
+    row=(game,target,created.astimezone(timezone.utc).isoformat(),deadline.isoformat(),history[-1].number,history[0].number,digest(history),report['estrategia'],VERSION,canonical(report['lineas']))
     with db:
-        db.execute('INSERT INTO forecasts VALUES (?,?,?,?,?,?,?,?,?)',row)
-    return {'game':game,'target':target,'created':row[2],'cutoff_hash':row[5],'strategy':row[6],
-            'version':row[7],'lines':report['lineas'],'deadline':row[3]}
+        db.execute('INSERT INTO forecasts VALUES (?,?,?,?,?,?,?,?,?,?)',row)
+    return {'game':game,'target':target,'created':row[2],'cutoff_hash':row[6],'strategy':row[7],
+            'version':row[8],'lines':report['lineas'],'deadline':row[3]}
 
 def settle(db,game,history,now=None):
     now=now or datetime.now(timezone.utc)
     actuals={d.number:d for d in history}
-    pending=db.execute('SELECT target,deadline,cutoff,history_hash,payload FROM forecasts WHERE game=? AND target NOT IN (SELECT target FROM results WHERE game=?) ORDER BY target',(game,game)).fetchall()
+    pending=db.execute('SELECT target,deadline,cutoff,history_start,history_hash,payload FROM forecasts WHERE game=? AND target NOT IN (SELECT target FROM results WHERE game=?) ORDER BY target',(game,game)).fetchall()
     scored=[]
     with db:
-        for target,deadline,cutoff,hash_value,payload in pending:
+        for target,deadline,cutoff,start,hash_value,payload in pending:
             if target not in actuals or now<datetime.fromisoformat(deadline):
                 continue
             # Archive expansion before cutoff is permitted only if the original prefix is
             # retained as a suffix; digest matches the exact previously frozen sample.
-            prefix=[d for d in history if d.number<=cutoff]
-            # No guessing of the original start: check suffixes only, fail on correction.
-            if not any(digest(prefix[i:])==hash_value for i in range(len(prefix))):
+            prefix=[d for d in history if start<=d.number<=cutoff]
+            if digest(prefix)!=hash_value:
                 raise ValueError(f'Frozen history changed for draw {target}')
             actual=actuals[target]
             if actual.date!=datetime.fromisoformat(deadline).date():
