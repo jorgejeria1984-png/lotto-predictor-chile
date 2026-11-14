@@ -19,6 +19,11 @@ builder.Services.AddScoped<IPredictionService, PredictionService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddScoped<ILearningService, LearningService>();
 
+builder.Services.AddHttpClient("ChileAnalysis", client =>
+{
+    client.BaseAddress = new Uri("http://127.0.0.1:8765/");
+    client.Timeout = TimeSpan.FromSeconds(90);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false });
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<LottoPredictor.Api.Middleware.AnalysisExceptionHandler>();
