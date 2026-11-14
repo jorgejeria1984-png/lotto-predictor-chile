@@ -1,0 +1,22 @@
+name: Chile history candidates
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * *'
+permissions:
+  contents: read
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python chile/fetch_history.py --game loto --output staging/loto.csv
+      - run: python chile/fetch_history.py --game kino --output staging/kino.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chile-candidate-results
+          path: staging/*.csv
+          retention-days: 14
