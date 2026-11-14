@@ -27,7 +27,7 @@ export default function ChileDashboard() {
     const controller = new AbortController();
     setReport(null);
     setError("");
-    fetch("/chile-api/analysis?game=" + game, { signal: controller.signal })
+    fetch("/api/chile/analysis?game=" + game, { signal: controller.signal })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "No se pudo analizar el historial");
