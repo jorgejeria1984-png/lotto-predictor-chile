@@ -1,0 +1,53 @@
+name: Chile Windows portable
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, chile-lab-v3]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s chile -v
+      - run: python -m pip install pyinstaller==6.16.0
+      - name: Build executable
+        run: python -m PyInstaller --noconfirm --clean --onedir --name LottoPredictorChile --add-data "chile/web;web" --add-data "chile/data;data" chile/launcher.py
+      - name: Smoke test executable
+        shell: pwsh
+        run: |
+          $dir = Resolve-Path 'dist/LottoPredictorChile'
+          $p = Start-Process -FilePath "$dir/LottoPredictorChile.exe" -WorkingDirectory $dir -PassThru -RedirectStandardOutput "$env:TEMP/lotto-out.txt" -RedirectStandardError "$env:TEMP/lotto-err.txt"
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 40; $i++) {
+              Start-Sleep -Seconds 1
+              if ($p.HasExited) { throw "Executable terminated early" }
+              try {
+                $url = (Get-Content "$env:TEMP/lotto-out.txt" | Where-Object { $_ -match '^http://127\.0\.0\.1:' } | Select-Object -First 1)
+                if ($url) {
+                  $r = Invoke-RestMethod "$($url)chile-api/analysis?game=loto" -TimeoutSec 30
+                  if ($r.registros -ge 80 -and $r.laboratorio) { $ok = $true; break }
+                }
+              } catch { Write-Host $_ }
+            }
+            if (-not $ok) { throw "Smoke test failed" }
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            Get-Content "$env:TEMP/lotto-err.txt" -ErrorAction SilentlyContinue
+          }
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force dist/LottoPredictorChile/data -ErrorAction SilentlyContinue
+          Copy-Item chile/WINDOWS.txt dist/LottoPredictorChile/LEEME.txt
+          Compress-Archive -Path dist/LottoPredictorChile -DestinationPath LottoPredictorChile-Windows.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LottoPredictorChile-Windows
+          path: LottoPredictorChile-Windows.zip
+          retention-days: 30
