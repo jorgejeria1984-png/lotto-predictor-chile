@@ -1,0 +1,48 @@
+name: Chile tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s chile -v
+      - run: python chile/history.py audit --game loto
+      - run: python chile/history.py audit --game kino
+      - run: python chile/advanced.py --game loto --simulations 1000
+      - run: python chile/advanced.py --game kino --simulations 1000
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build
+  lstm:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+      - run: python -m unittest discover -s chile -p test_advanced.py -v
+      - run: python chile/advanced.py --game kino --lstm --simulations 1000
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test backend/LottoPredictor.Tests/LottoPredictor.Tests.csproj --filter FullyQualifiedName~ChileControllerTests

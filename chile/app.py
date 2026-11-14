@@ -1,8 +1,9 @@
 """Local-only browser interface and CLI; Python standard library."""
 import argparse, io, json, html
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 from engine import PROFILES, load_csv, analyze
+from advanced import load_history, replay, bias_report
 
 PAGE='''<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lotto Predictor Chile</title><style>body{font:16px system-ui;max-width:960px;margin:40px auto;padding:0 20px;color:#223344}label{display:block;margin:14px 0}textarea{width:100%;height:220px}button{background:#164b78;color:white;padding:10px 18px;border:0;border-radius:6px}table{border-collapse:collapse;width:100%}td,th{padding:8px;border-bottom:1px solid #ddd;text-align:left}.balls{font-size:1.35rem;font-weight:bold;word-spacing:6px;color:#164b78}small{color:#52626e}</style><h1>Lotto Predictor Chile</h1><p>Exploración estadística de sorteos principales. No garantiza premios.</p><form method="post"><label>Juego <select name="game"><option value="loto">Loto 6/41</option><option value="kino">Kino 14/25</option></select></label><label>Historial CSV (draw,date,n1,...,n6 o n14)<textarea name="csv" required placeholder="Pegue el historial de resultados verificados; mínimo 80 sorteos."></textarea></label><button>Analizar historial</button></form>'''
 
@@ -17,7 +18,31 @@ def render(result):
 class Handler(BaseHTTPRequestHandler):
     def respond(self,body,status=200):
         data=(PAGE+body).encode(); self.send_response(status); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
-    def do_GET(self): self.respond('')
+    def respond_json(self, data, status=200):
+        payload=json.dumps(data,ensure_ascii=False).encode()
+        self.send_response(status)
+        self.send_header('Content-Type','application/json; charset=utf-8')
+        self.send_header('Content-Length',str(len(payload)))
+        self.send_header('Cache-Control','no-store')
+        self.end_headers()
+        self.wfile.write(payload)
+    def do_GET(self):
+        url=urlsplit(self.path)
+        if url.path!='/chile-api/analysis':
+            self.respond('')
+            return
+        try:
+            game=parse_qs(url.query,max_num_fields=2).get('game',['loto'])[0]
+            p=PROFILES[game]
+            h=load_history(game)
+            result=replay(h,p,simulations=10000)
+            result['diagnostico_sesgo']=bias_report(h,p)
+            result['registros']=len(h)
+            result['fecha_ultimo']=str(h[-1].date)
+            self.respond_json(result)
+        except (ValueError,KeyError,OSError) as exc:
+            self.respond_json({'error':str(exc)},400)
+
     def do_POST(self):
         try:
             length=int(self.headers.get('Content-Length','0'))
