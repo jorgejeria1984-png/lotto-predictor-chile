@@ -92,6 +92,7 @@ async function history(){
 async function ledger(){
   const d=await api('ledger?game='+$('game').value);
   $('ledger-summary').textContent=d.scored+' evaluados · '+d.pending+' pendientes'+(d.scored?' · media de aciertos: '+fmt(d.champion_mean):'');
+  $('ledger-models').replaceChildren(...Object.entries(d.models||{}).map(([name,m])=>tableRow([label(name),m.n,fmt(m.mean),m.total,m.target_hits])));
   $('ledger').replaceChildren(...d.rows.map(r=>tableRow([r.target,r.created,label(r.strategy),nums(r.numbers),r.actual?nums(r.actual):'Pendiente',r.matches===null?'—':r.matches])));
 }
 function resetStage(){staged=null;$('stage').hidden=true;$('review').checked=false;}
@@ -107,7 +108,7 @@ async function load(refresh=false){
     return 'Historial local cargado. Próximo sorteo sujeto a calendario oficial.';
   });
 }
-$('game').onchange=()=>{offset=0;resetStage();$('verified').checked=false;$('deadline').value='';result=null;document.dispatchEvent(new Event('chile-reset'));for(const id of ['metrics','balls','ranking','comparison','heat','freq','history','ledger','strategy'])$(id).replaceChildren();for(const id of ['strategy-note','bias','audit','page','ledger-summary'])$(id).textContent='';load();};
+$('game').onchange=()=>{offset=0;resetStage();$('verified').checked=false;$('deadline').value='';result=null;document.dispatchEvent(new Event('chile-reset'));for(const id of ['metrics','balls','ranking','comparison','heat','freq','history','ledger','ledger-models','strategy'])$(id).replaceChildren();for(const id of ['strategy-note','bias','audit','page','ledger-summary'])$(id).textContent='';load();};
 $('reload').onclick=()=>load(true);
 $('lstm').onchange=()=>load();
 $('strategy').onchange=showLine;
