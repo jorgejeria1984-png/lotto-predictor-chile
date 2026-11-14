@@ -2,7 +2,15 @@
 
 Loto principal 6/41 y Kino principal 14/25. El motor Python no reemplaza el almacenamiento original de los juegos británicos. La pestaña Chile de React consulta un gateway de solo lectura en ASP.NET (.NET 10), que comunica con el servicio Python local. No hay capacidad predictiva demostrada frente al azar.
 
-## Inicio rápido (Windows)
+## Inicio rápido (Windows): dashboard autónomo
+
+Desde la raíz del repositorio ejecute solamente:
+
+    py chile/app.py
+
+Abra http://127.0.0.1:8765. El dashboard 2.0 carga los históricos locales automáticamente. Selector Loto/Kino, comparación de modelos, combinaciones experimentales, frecuencias históricas y últimos 25 sorteos, Monte Carlo 100.000 ensayos, diagnóstico de sesgo, historial paginado y consulta/registro prospectivo. El botón Buscar nuevos resultados descarga candidatos; solo tras comprobarlos con los operadores oficiales puede incorporarlos al CSV local. La validación del parser con HTML real sigue pendiente. LSTM es opcional mediante la casilla y requiere PyTorch instalado; el REST de solo lectura sigue siendo compatible con el gateway anterior. No se necesita React ni .NET para este modo. Los cambios del historial y el registro SQLite son locales, no se sincronizan automáticamente con GitHub.
+
+## Modo integrado alternativo (React y .NET)
 
 Desde la raíz del repositorio, ejecute en tres terminales:
 
@@ -12,7 +20,7 @@ Desde la raíz del repositorio, ejecute en tres terminales:
     npm ci
     npm run dev
 
-Requiere Python 3.10+, SDK .NET 10 y Node 22. Abra http://127.0.0.1:5173 y seleccione la pestaña Chile. El dashboard utiliza http://127.0.0.1:5080/api/chile/analysis?game=loto (Vite reenvía /api); el gateway consulta el servicio Python en 127.0.0.1:8765. También puede usar directamente http://127.0.0.1:8765 para analizar un CSV manual con el motor base. No exponer los servidores de desarrollo a Internet. Si usa los otros juegos, configure sus claves locales según RUNNING.md del proyecto original. El gateway Chile solo admite GET y no modifica datos.
+Requiere Python 3.10+, SDK .NET 10 y Node 22. Abra http://127.0.0.1:5173 y seleccione la pestaña Chile. El dashboard utiliza http://127.0.0.1:5080/api/chile/analysis?game=loto (Vite reenvía /api); el gateway consulta el servicio Python en 127.0.0.1:8765. También puede usar directamente http://127.0.0.1:8765 para el dashboard autónomo. No exponer los servidores de desarrollo a Internet. Si usa los otros juegos, configure sus claves locales según RUNNING.md del proyecto original. El gateway Chile solo admite GET y no modifica datos.
 
 ## Datos y auditoría
 
