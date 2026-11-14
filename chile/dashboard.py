@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 from advanced import replay, bias_report, load_history
+from laboratory import laboratory, simulate
 from engine import PROFILES
 from fetch_history import download, parse
 from history import DATA, audit, read_records, merge_records, save_atomic
@@ -36,16 +37,20 @@ class Dashboard:
         p=PROFILES[game]
         key=(game,lstm,self._hash(self.data/f'{game}.csv'))
         if refresh or key not in self.cache:
-            result=replay(h,p,lstm=lstm,simulations=100000)
+            result=replay(h,p,lstm=lstm,simulations=100000,details=True)
             result.update({'diagnostico_sesgo':bias_report(h,p),'registros':n,'fecha_ultimo':str(h[-1].date),'auditoria':info,
                            'pool':p.pool,'pick':p.pick,'lstm_disponible':importlib.util.find_spec('torch') is not None})
             counts=Counter(x for d in h for x in d.numbers)
             recent=Counter(x for d in h[-25:] for x in d.numbers)
             result['frecuencias']=[{'numero':x,'historica':counts[x],'reciente':recent[x],
                                     'tasa':counts[x]/n,'tasa25':recent[x]/min(25,n)} for x in range(1,p.pool+1)]
+            result['laboratorio']=laboratory(h,p,result,columns=5)
             self.cache={k:v for k,v in self.cache.items() if k[0]!=game or k[2]==key[2]}
             self.cache[key]=result
         return self.cache[key]
+
+    def simulate(self,game,weights):
+        return simulate(load_history(game,self.data),PROFILES[game],weights)
 
     def history(self,game,offset=0,limit=25):
         records=self.records(game)
