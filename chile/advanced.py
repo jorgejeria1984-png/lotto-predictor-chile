@@ -9,7 +9,7 @@ from history import DATA, audit, read_records
 from uncertainty import compare_mean
 
 FEATURES = ('historica','reciente_10','reciente_25','reciente_50','exponencial','rezago','momentum')
-VERSION = 'chile-online-v1'
+VERSION = 'chile-online-v2'
 
 def matrix(history, profile):
     f = features(history, profile)
@@ -111,7 +111,7 @@ def validate_history(draws,p):
     if any(len(d.numbers)!=p.pick or not all(1<=n<=p.pool for n in d.numbers) for d in draws):
         raise ValueError('Bolillas inválidas')
 
-def replay(draws,p,warmup=50,seed=42,lstm=False,simulations=10000):
+def replay(draws,p,warmup=50,seed=42,lstm=False,simulations=10000,details=False):
     validate_history(draws,p)
     if warmup<10 or len(draws)<warmup+30:
         raise ValueError('Se requieren 80 sorteos con protocolo de 50 de calentamiento')
@@ -120,6 +120,14 @@ def replay(draws,p,warmup=50,seed=42,lstm=False,simulations=10000):
     genetic=Evolution(p,seed)
     neural=LstmChallenger(p,seed) if lstm else None
     records={}
+    # Hedge weights use only actual results received before the next forecast.
+    hedge={name:1.0 for name in (*FEATURES,'logit_online','evolutivo_online')}
+    expected=p.pick**2/p.pool
+    variance=p.pick*(p.pick/p.pool)*(1-p.pick/p.pool)*(p.pool-p.pick)/(p.pool-1)
+    scale=math.sqrt(variance)
+    def hedge_line(lines):
+        scores=[sum(hedge[name]*(ball in lines[name]) for name in hedge) for ball in range(1,p.pool+1)]
+        return rank(scores,p)
     for i in range(10,len(draws)):
         h=draws[:i]; actual=draws[i].numbers
         x=matrix(h,p); candidates=genetic.lines(x)
@@ -129,9 +137,14 @@ def replay(draws,p,warmup=50,seed=42,lstm=False,simulations=10000):
             lines['evolutivo_online']=genetic.pick(candidates)
             if neural:
                 lines['lstm_online']=neural.predict(h)
+            lines['hedge_online']=hedge_line(lines)
             lines['azar']=frozenset(rng.sample(range(1,p.pool+1),p.pick))
             for name,line in lines.items():
                 records.setdefault(name,[]).append(len(line&actual))
+            for name in hedge:
+                hedge[name]*=math.exp(.05*(len(lines[name]&actual)-expected)/scale)
+            total=sum(hedge.values())
+            hedge={name:.99*w/total+.01/len(hedge) for name,w in hedge.items()}
         # The actual draw is only consumed AFTER forecasts have been generated.
         logit.update(x,actual)
         genetic.update(candidates,actual)
@@ -149,15 +162,22 @@ def replay(draws,p,warmup=50,seed=42,lstm=False,simulations=10000):
     lines['evolutivo_online']=genetic.pick(genetic.lines(x))
     if neural:
         lines['lstm_online']=neural.predict(draws)
+    lines['hedge_online']=hedge_line(lines)
     # Freeze the selection rule; holdout never chooses champion.
     chosen=holdout[winner]
-    return {'version':VERSION,'ultimo_sorteo':draws[-1].number,'estrategia':winner,
+    report={'version':VERSION,'ultimo_sorteo':draws[-1].number,'estrategia':winner,
             'seleccion':selection,'validacion_exploratoria':holdout,
             'azar_media':p.pick**2/p.pool,'objetivo':p.target,
             'p_objetivo':binomial_tail(chosen['n'],chosen['objetivo'],chance_tail(p,p.target)),
             'contraste_media':compare_mean(p,chosen['n'],chosen['total'],simulations,seed),
             'lineas':{s:sorted(v) for s,v in lines.items()},
             'advertencia':'Los datos históricos ya explorados no constituyen validación independiente de estas nuevas estrategias.'}
+
+    if details:
+        report['series']={name:values[split:] for name,values in records.items()}
+        report['series_draws']=[d.number for d in draws[warmup+split:]]
+        report['hedge_weights']=hedge
+    return report
 
 def bias_report(draws,p):
     """Marginal frequency test with Bonferroni control; cannot identify physical cause."""
