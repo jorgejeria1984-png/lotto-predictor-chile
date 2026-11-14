@@ -1,3 +1,9 @@
+# Inicio rápido 3.0
+
+En Windows, descomprima el ZIP completo y abra **ABRIR_LOTTO.cmd** con doble clic (necesita Python 3.10+). El lanzador inicia el servidor y abre el navegador automáticamente. Alternativamente descargue el artefacto **LottoPredictorChile-Windows** de la acción Chile Windows portable; descomprima tanto el artefacto como su ZIP interno y abra LottoPredictorChile.exe junto a _internal. El EXE portable no necesita instalar Python, Node o .NET, pero no incluye LSTM/PyTorch. No está firmado. No elimine el directorio data ni el registro prospective.sqlite al actualizar.
+
+Laboratorio: conjunto Hedge adaptativo, correlaciones con referencia de muestreo sin reemplazo, gráficos de aciertos acumulados/distribución hipergeométrica, geometría en cuadrícula de referencia (no cartón oficial), autocorrelación, periodograma y simulador manual de cinco pesos. Los resultados son exploratorios, no pruebas predictivas. El registro guarda y evalúa todas las líneas congeladas; requiere resultado verificado y confirmación manual. El conjunto adaptativo se reconstruye con cada histórico; no hay entrenamiento persistente adicional. Se mantienen 104 sorteos Loto y 81 Kino; el histórico oficial completo sigue pendiente. 
+
 # Lotto Predictor Chile — experimental
 
 Loto principal 6/41 y Kino principal 14/25. El motor Python no reemplaza el almacenamiento original de los juegos británicos. La pestaña Chile de React consulta un gateway de solo lectura en ASP.NET (.NET 10), que comunica con el servicio Python local. No hay capacidad predictiva demostrada frente al azar.
