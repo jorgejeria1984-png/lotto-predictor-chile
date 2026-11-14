@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 from engine import PROFILES, load_csv, analyze
+from uncertainty import compare_mean
 
 DATA = Path(__file__).resolve().parent / 'data'
 
@@ -97,6 +98,9 @@ def main():
                 raise ValueError(f"Solo {report['bloque_reciente_contiguo']} sorteos consecutivos; se requieren 80")
             block = sorted(records)[-report['bloque_reciente_contiguo']:]
             report['analisis'] = analyze([records[k][0] for k in block], PROFILES[args.game])
+            result = report['analisis']
+            validation = result['validacion'][result['estrategia']]
+            report['contraste_media'] = compare_mean(PROFILES[args.game], validation['sorteos'], round(validation['media'] * validation['sorteos']))
         print(json.dumps(report, ensure_ascii=False, indent=2))
     except ValueError as exc:
         parser.exit(2, f'Error: {exc}\n')
