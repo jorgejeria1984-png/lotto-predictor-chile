@@ -1,0 +1,10 @@
+LOTTO PREDICTOR CHILE 3.0 - WINDOWS
+1. Extraiga todo el ZIP en una carpeta propia, no ejecute dentro del ZIP.
+2. Abra LottoPredictorChile.exe con doble clic.
+3. Se abre el navegador y el servidor local. Mantenga la consola abierta.
+4. Para cerrar, Ctrl+C en la consola.
+No necesita instalar Python, Node ni .NET. El ejecutable debe mantenerse junto con la carpeta _internal.
+Los datos y SQLite se conservan al lado del EXE. No borre data/ ni prospective.sqlite al actualizar.
+El paquete no instala PyTorch: LSTM no está disponible aquí; use la versión fuente con PyTorch si desea probarlo.
+El ejecutable no está firmado. Si Windows advierte sobre un archivo desconocido, compruebe su procedencia antes de abrirlo. No desactive el antivirus.
+Los históricos son parciales, de fuentes secundarias y requieren comprobación. No hay garantía de premios.

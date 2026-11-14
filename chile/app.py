@@ -1,64 +1,107 @@
-"""Local-only browser interface and CLI; Python standard library."""
-import argparse, io, json, html
+"""Local dashboard and backward-compatible analysis API/CLI."""
+import argparse
+import json
+import secrets
+import sqlite3
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlsplit
+from pathlib import Path
+from urllib.parse import parse_qs,urlsplit
 from engine import PROFILES, load_csv, analyze
-from advanced import load_history, replay, bias_report
+from dashboard import Dashboard
 
-PAGE='''<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lotto Predictor Chile</title><style>body{font:16px system-ui;max-width:960px;margin:40px auto;padding:0 20px;color:#223344}label{display:block;margin:14px 0}textarea{width:100%;height:220px}button{background:#164b78;color:white;padding:10px 18px;border:0;border-radius:6px}table{border-collapse:collapse;width:100%}td,th{padding:8px;border-bottom:1px solid #ddd;text-align:left}.balls{font-size:1.35rem;font-weight:bold;word-spacing:6px;color:#164b78}small{color:#52626e}</style><h1>Lotto Predictor Chile</h1><p>Exploración estadística de sorteos principales. No garantiza premios.</p><form method="post"><label>Juego <select name="game"><option value="loto">Loto 6/41</option><option value="kino">Kino 14/25</option></select></label><label>Historial CSV (draw,date,n1,...,n6 o n14)<textarea name="csv" required placeholder="Pegue el historial de resultados verificados; mínimo 80 sorteos."></textarea></label><button>Analizar historial</button></form>'''
-
-def render(result):
-    text=html.escape
-    rows=''.join('<tr><td>'+text(s)+'</td><td>'+f"{result['entrenamiento'][s]['media']:.3f}</td><td>{v['media']:.3f}</td><td>{v['objetivo_aciertos']}/{v['sorteos']}</td></tr>" for s,v in result['validacion'].items())
-    balls=' · '.join(f'{n:02d}' for n in result['combinacion'])
-    return (f"<h2>Resultado experimental</h2><p>Último sorteo: {result['ultimo_sorteo']} · {result['ultima_fecha']}</p><p>Modelo seleccionado: {text(result['estrategia'])}</p><p class='balls'>{balls}</p>"
-            f"<p>Media aleatoria teórica: {result['azar_media_teorica']:.3f}; objetivo: ≥{result['objetivo']} aciertos; p-valor unilateral en validación: {result['p_valor_unilateral_objetivo']:.4f}.</p>"
-            '<table><thead><tr><th>Estrategia</th><th>Media selección</th><th>Media prueba</th><th>Objetivo en prueba</th></tr></thead><tbody>'+rows+'</tbody></table><p>'+text(result['advertencia'])+'</p>')
+ROOT=Path(__file__).resolve().parent
+TOKEN=secrets.token_urlsafe(32)
 
 class Handler(BaseHTTPRequestHandler):
-    def respond(self,body,status=200):
-        data=(PAGE+body).encode(); self.send_response(status); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
-    def respond_json(self, data, status=200):
-        payload=json.dumps(data,ensure_ascii=False).encode()
+    dashboard=Dashboard()
+
+    def allowed_host(self):
+        return self.headers.get('Host','') in (f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}')
+
+    def respond(self,data,kind,status=200):
+        payload=data.encode('utf-8') if isinstance(data,str) else data
         self.send_response(status)
-        self.send_header('Content-Type','application/json; charset=utf-8')
+        self.send_header('Content-Type',kind)
         self.send_header('Content-Length',str(len(payload)))
         self.send_header('Cache-Control','no-store')
+        self.send_header('X-Content-Type-Options','nosniff')
+        self.send_header('X-Frame-Options','DENY')
+        self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         self.end_headers()
         self.wfile.write(payload)
+
+    def json(self,data,status=200):
+        self.respond(json.dumps(data,ensure_ascii=False),'application/json; charset=utf-8',status)
+
     def do_GET(self):
+        if not self.allowed_host():
+            self.json({'error':'Host no permitido'},403);return
         url=urlsplit(self.path)
-        if url.path!='/chile-api/analysis':
-            self.respond('')
-            return
         try:
-            game=parse_qs(url.query,max_num_fields=2).get('game',['loto'])[0]
-            p=PROFILES[game]
-            h=load_history(game)
-            result=replay(h,p,simulations=10000)
-            result['diagnostico_sesgo']=bias_report(h,p)
-            result['registros']=len(h)
-            result['fecha_ultimo']=str(h[-1].date)
-            self.respond_json(result)
-        except (ValueError,KeyError,OSError) as exc:
-            self.respond_json({'error':str(exc)},400)
+            if url.path=='/':
+                self.respond((ROOT/'web'/'index.html').read_text(encoding='utf-8').replace('__LOCAL_TOKEN__',TOKEN),'text/html; charset=utf-8')
+                return
+            assets={'/dashboard.js':('dashboard.js','text/javascript; charset=utf-8'),'/dashboard.css':('dashboard.css','text/css; charset=utf-8'),'/lab.js':('lab.js','text/javascript; charset=utf-8')}
+            if url.path in assets:
+                name,kind=assets[url.path];self.respond((ROOT/'web'/name).read_bytes(),kind);return
+            q=parse_qs(url.query,max_num_fields=8)
+            game=q.get('game',['loto'])[0]
+            if url.path=='/chile-api/analysis':
+                self.json(self.dashboard.analysis(game,lstm=q.get('lstm',['0'])[0]=='1',refresh=q.get('refresh',['0'])[0]=='1'))
+            elif url.path=='/chile-api/history':
+                self.json(self.dashboard.history(game,int(q.get('offset',['0'])[0]),int(q.get('limit',['25'])[0])))
+            elif url.path=='/chile-api/ledger':
+                self.json(self.dashboard.ledger(game))
+            else:
+                self.json({'error':'Ruta inexistente'},404)
+        except (ValueError,KeyError,OSError,RuntimeError,sqlite3.Error) as exc:
+            self.json({'error':str(exc)},400)
 
     def do_POST(self):
+        origin=self.headers.get('Origin','')
+        expected='http://'+self.headers.get('Host','')
+        if not self.allowed_host() or origin!=expected or not secrets.compare_digest(self.headers.get('X-Chile-Token',''),TOKEN):
+            self.json({'error':'Solicitud local no autorizada'},403);return
         try:
+            if self.headers.get_content_type()!='application/json':
+                raise ValueError('Se requiere JSON')
             length=int(self.headers.get('Content-Length','0'))
-            if length<1 or length>5_000_000: raise ValueError('Tamaño de entrada inválido')
-            form=parse_qs(self.rfile.read(length).decode(),max_num_fields=4)
-            p=PROFILES[form['game'][0]]; draws=load_csv(io.StringIO(form['csv'][0]),p)
-            self.respond(render(analyze(draws,p)))
-        except (ValueError,KeyError,TypeError) as exc:
-            self.respond('<p>Error: '+html.escape(str(exc))+'</p>',400)
+            if not 1<=length<=16000:
+                raise ValueError('Tamaño inválido')
+            data=json.loads(self.rfile.read(length))
+            if not isinstance(data,dict):
+                raise ValueError('Formato inválido')
+            game=data['game']
+            if not isinstance(game,str) or game not in PROFILES:
+                raise ValueError('Juego inválido')
+            route=urlsplit(self.path).path
+            if route=='/chile-api/stage':
+                result=self.dashboard.stage(game)
+            elif route=='/chile-api/approve':
+                result=self.dashboard.approve(game,data['stage_hash'],data.get('reviewed'))
+            elif route=='/chile-api/freeze':
+                result=self.dashboard.freeze(game,data['deadline'],data.get('reviewed'),data.get('lstm') is True)
+            elif route=='/chile-api/simulate':
+                result=self.dashboard.simulate(game,data['weights'])
+            elif route=='/chile-api/settle':
+                result=self.dashboard.settle(game,data.get('reviewed'))
+            else:
+                self.json({'error':'Ruta inexistente'},404);return
+            self.json(result)
+        except (ValueError,KeyError,TypeError,OSError,RuntimeError,sqlite3.Error) as exc:
+            self.json({'error':str(exc)},400)
 
 def main():
-    parser=argparse.ArgumentParser(); parser.add_argument('--game',choices=PROFILES); parser.add_argument('--csv'); parser.add_argument('--port',type=int,default=8765); args=parser.parse_args()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--game',choices=PROFILES);parser.add_argument('--csv');parser.add_argument('--port',type=int,default=8765)
+    args=parser.parse_args()
     if args.csv:
-        if not args.game: parser.error('--csv requiere --game')
-        with open(args.csv,encoding='utf-8-sig',newline='') as f: result=analyze(load_csv(f,PROFILES[args.game]),PROFILES[args.game])
+        if not args.game:parser.error('--csv requiere --game')
+        with open(args.csv,encoding='utf-8-sig',newline='') as file:
+            result=analyze(load_csv(file,PROFILES[args.game]),PROFILES[args.game])
         print(json.dumps(result,ensure_ascii=False,indent=2))
     else:
-        print(f'http://127.0.0.1:{args.port}',flush=True); HTTPServer(('127.0.0.1',args.port),Handler).serve_forever()
-if __name__=='__main__': main()
+        print(f'http://127.0.0.1:{args.port}',flush=True)
+        HTTPServer(('127.0.0.1',args.port),Handler).serve_forever()
+
+if __name__=='__main__':main()
