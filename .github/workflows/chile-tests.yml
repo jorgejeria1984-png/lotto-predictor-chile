@@ -1,0 +1,17 @@
+name: Chile tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s chile -v
+      - run: python chile/history.py audit --game loto
+      - run: python chile/history.py audit --game kino
+      - run: python chile/advanced.py --game loto --simulations 1000
+      - run: python chile/advanced.py --game kino --simulations 1000
