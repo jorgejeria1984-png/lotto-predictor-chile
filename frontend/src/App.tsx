@@ -1,18 +1,20 @@
 import { useState } from "react";
 import Dashboard from "./pages/Dashboard";
+import ChileDashboard from "./pages/ChileDashboard";
 import AddResult from "./pages/AddResult";
 import DrawHistory from "./pages/DrawHistory";
 import { setApiLottery } from "./api";
 import { LOTTERIES, type LotteryKey } from "./types";
 
 const TABS = [
+  { key: "chile", title: "Chile", hint: "Loto y Kino" },
   { key: "dashboard", title: "Dashboard", hint: "Predictions & analysis" },
   { key: "add", title: "Add Result", hint: "Enter the latest draw" },
   { key: "history", title: "History", hint: "Browse & correct draws" },
 ] as const;
 
 export default function App() {
-  const [page, setPage] = useState<"dashboard" | "add" | "history">(
+  const [page, setPage] = useState<"dashboard" | "add" | "history" | "chile">(
     "dashboard",
   );
   const [lotteryKey, setLotteryKey] = useState<LotteryKey>("uk-lotto");
@@ -62,7 +64,9 @@ export default function App() {
         </div>
       </header>
       <main className="app-main">
-        {page === "dashboard" ? (
+        {page === "chile" ? (
+          <ChileDashboard />
+        ) : page === "dashboard" ? (
           <Dashboard key={lotteryKey} lottery={lottery} onAddResult={() => setPage("add")} />
         ) : page === "history" ? (
           <DrawHistory key={lotteryKey} lottery={lottery} />
