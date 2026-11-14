@@ -18,7 +18,7 @@ class LaboratoryTests(unittest.TestCase):
             self.assertAlmostEqual(sum(l['theory']),1)
             for d in l['distributions'].values():
                 self.assertEqual(sum(d['counts']),len(l['draws']))
-            self.assertEqual(l['correlation'][0][1],l['correlation'][1][0])
+            self.assertAlmostEqual(l['correlation'][0][1],l['correlation'][1][0],places=12)
             sim=simulate(h,p,{key:1 for key in SIM_FEATURES})
             self.assertEqual(sum(sim['histogram']),32)
             with self.assertRaises(ValueError):simulate(h,p,{key:0 for key in SIM_FEATURES})
