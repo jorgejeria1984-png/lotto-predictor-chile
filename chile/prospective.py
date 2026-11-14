@@ -86,6 +86,12 @@ def report(db,game):
     rows=db.execute('SELECT f.strategy,r.matches FROM forecasts f JOIN results r USING(game,target) WHERE f.game=? ORDER BY f.target',(game,)).fetchall()
     result={'game':game,'scored':len(rows),'pending':db.execute('SELECT COUNT(*) FROM forecasts f WHERE game=? AND NOT EXISTS (SELECT 1 FROM results r WHERE r.game=f.game AND r.target=f.target)',(game,)).fetchone()[0]}
     if rows:
+        by_model={}
+        for _,matches in rows:
+            for name,value in json.loads(matches).items():
+                by_model.setdefault(name,[]).append(value)
+        p=PROFILES[game]
+        result['models']={name:{'n':len(v),'mean':sum(v)/len(v),'total':sum(v),'target_hits':sum(x>=p.target for x in v)} for name,v in by_model.items()}
         total=sum(json.loads(matches)[strategy] for strategy,matches in rows)
         result['champion_total']=total
         result['champion_mean']=total/len(rows)
