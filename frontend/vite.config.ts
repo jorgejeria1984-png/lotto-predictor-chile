@@ -9,6 +9,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": "http://127.0.0.1:5080",
+      "/chile-api": "http://127.0.0.1:8765",
     },
   },
 });
