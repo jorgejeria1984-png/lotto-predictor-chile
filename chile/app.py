@@ -41,7 +41,7 @@ class Handler(BaseHTTPRequestHandler):
             if url.path=='/':
                 self.respond((ROOT/'web'/'index.html').read_text(encoding='utf-8').replace('__LOCAL_TOKEN__',TOKEN),'text/html; charset=utf-8')
                 return
-            assets={'/dashboard.js':('dashboard.js','text/javascript; charset=utf-8'),'/dashboard.css':('dashboard.css','text/css; charset=utf-8')}
+            assets={'/dashboard.js':('dashboard.js','text/javascript; charset=utf-8'),'/dashboard.css':('dashboard.css','text/css; charset=utf-8'),'/lab.js':('lab.js','text/javascript; charset=utf-8')}
             if url.path in assets:
                 name,kind=assets[url.path];self.respond((ROOT/'web'/name).read_bytes(),kind);return
             q=parse_qs(url.query,max_num_fields=8)
@@ -81,6 +81,8 @@ class Handler(BaseHTTPRequestHandler):
                 result=self.dashboard.approve(game,data['stage_hash'],data.get('reviewed'))
             elif route=='/chile-api/freeze':
                 result=self.dashboard.freeze(game,data['deadline'],data.get('reviewed'),data.get('lstm') is True)
+            elif route=='/chile-api/simulate':
+                result=self.dashboard.simulate(game,data['weights'])
             elif route=='/chile-api/settle':
                 result=self.dashboard.settle(game,data.get('reviewed'))
             else:
