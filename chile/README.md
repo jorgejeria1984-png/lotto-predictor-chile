@@ -1,3 +1,7 @@
+# Inicio rápido 3.1 — PyTorch y LSTM
+
+Descomprima el ZIP y abra ABRIR_LOTTO.cmd. El lanzador usa el mismo Python por defecto que `py -m pip install torch`. La web verifica una operación real de PyTorch CPU y activa LSTM automáticamente al detectar la biblioteca. Si falla la comprobación o el entrenamiento, conserva los modelos estadísticos y muestra el motivo. Puede desmarcar LSTM para comparar sin ella; la selección principal sigue dependiendo del backtesting. Para ver los números LSTM, elija LSTM en el selector de modelos. El EXE portátil anterior no incluye PyTorch; este ZIP utiliza Python instalado en Windows. Conserve los CSV locales y prospective.sqlite al actualizar.
+
 # Inicio rápido 3.0
 
 En Windows, descomprima el ZIP completo y abra **ABRIR_LOTTO.cmd** con doble clic (necesita Python 3.10+). El lanzador inicia el servidor y abre el navegador automáticamente. Alternativamente descargue el artefacto **LottoPredictorChile-Windows** de la acción Chile Windows portable; descomprima tanto el artefacto como su ZIP interno y abra LottoPredictorChile.exe junto a _internal. El EXE portable no necesita instalar Python, Node o .NET, pero no incluye LSTM/PyTorch. No está firmado. No elimine el directorio data ni el registro prospective.sqlite al actualizar.
