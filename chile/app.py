@@ -1,5 +1,7 @@
 """Local dashboard and backward-compatible analysis API/CLI."""
 import argparse
+import sys
+from functools import lru_cache
 import json
 import secrets
 import sqlite3
@@ -11,6 +13,18 @@ from dashboard import Dashboard
 
 ROOT=Path(__file__).resolve().parent
 TOKEN=secrets.token_urlsafe(32)
+
+@lru_cache(maxsize=1)
+def neural_status():
+    if getattr(sys,'frozen',False):
+        return {'available':False,'version':None,'message':'El EXE portátil no incluye PyTorch. Use ABRIR_LOTTO.cmd para activar LSTM.'}
+    try:
+        import torch
+        # Verify actual CPU operation, not only the presence of a package.
+        torch.zeros(1,device='cpu').add_(1)
+        return {'available':True,'version':str(torch.__version__),'message':'PyTorch CPU disponible'}
+    except (ImportError,OSError,RuntimeError) as exc:
+        return {'available':False,'version':None,'message':'PyTorch no disponible en este Python: '+str(exc)}
 
 class Handler(BaseHTTPRequestHandler):
     dashboard=Dashboard()
@@ -46,7 +60,9 @@ class Handler(BaseHTTPRequestHandler):
                 name,kind=assets[url.path];self.respond((ROOT/'web'/name).read_bytes(),kind);return
             q=parse_qs(url.query,max_num_fields=8)
             game=q.get('game',['loto'])[0]
-            if url.path=='/chile-api/analysis':
+            if url.path=='/chile-api/capabilities':
+                self.json(neural_status())
+            elif url.path=='/chile-api/analysis':
                 self.json(self.dashboard.analysis(game,lstm=q.get('lstm',['0'])[0]=='1',refresh=q.get('refresh',['0'])[0]=='1'))
             elif url.path=='/chile-api/history':
                 self.json(self.dashboard.history(game,int(q.get('offset',['0'])[0]),int(q.get('limit',['25'])[0])))
