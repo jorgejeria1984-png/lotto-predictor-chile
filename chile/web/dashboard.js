@@ -6,7 +6,7 @@ const names={historica:'Frecuencia histórica',reciente_10:'Frecuencia 10',recie
 const label=s=>names[s]||s;
 const pad=n=>String(n).padStart(2,'0');
 const nums=arr=>arr.map(pad).join(' · ');
-let result=null, offset=0, staged=null, busy=false;
+let result=null, offset=0, staged=null, busy=false, neuralAvailable=false;
 
 function node(tag,text,cls){
   const el=document.createElement(tag);
@@ -18,6 +18,7 @@ function status(text,error=false){$('status').textContent=text;$('status').class
 function controls(value){
   busy=value;
   for(const id of ['game','lstm','reload','download','freeze','settle','prev','next','approve'])$(id).disabled=value;
+  $('lstm').disabled=value||!neuralAvailable;
   $('approve').disabled=value||!staged||!staged.new_count||!$('review').checked;
   if(!value){$('prev').disabled=offset===0;$('next').disabled=!$('next').dataset.more;}
 }
@@ -103,9 +104,19 @@ async function run(work){
 }
 async function load(refresh=false){
   await run(async()=>{
-    const d=await api('analysis?game='+$('game').value+'&lstm='+($('lstm').checked?'1':'0')+'&refresh='+(refresh?'1':'0'));
+    const requested=$('lstm').checked;
+    let d,warning='';
+    try{
+      if(requested)status('Entrenando LSTM y comparando estrategias…');
+      d=await api('analysis?game='+$('game').value+'&lstm='+(requested?'1':'0')+'&refresh='+(refresh?'1':'0'));
+    }catch(e){
+      if(!requested)throw e;
+      $('lstm').checked=false;
+      warning='LSTM no completó el análisis: '+e.message+'. Se muestran los modelos sin LSTM.';
+      d=await api('analysis?game='+$('game').value+'&lstm=0');
+    }
     render(d);await history();await ledger();
-    return 'Historial local cargado. Próximo sorteo sujeto a calendario oficial.';
+    return warning||(d.lineas.lstm_online?'LSTM entrenada e incluida en el ranking.':'Historial local cargado. Próximo sorteo sujeto a calendario oficial.');
   });
 }
 $('game').onchange=()=>{offset=0;resetStage();$('verified').checked=false;$('deadline').value='';result=null;document.dispatchEvent(new Event('chile-reset'));for(const id of ['metrics','balls','ranking','comparison','heat','freq','history','ledger','ledger-models','strategy'])$(id).replaceChildren();for(const id of ['strategy-note','bias','audit','page','ledger-summary'])$(id).textContent='';load();};
@@ -140,4 +151,16 @@ $('settle').onclick=()=>run(async()=>{
   await ledger();$('verified').checked=false;
   return d.scored.length+' pronósticos evaluados.';
 });
-load();
+async function boot(){
+  controls(true);
+  try{
+    const cap=await api('capabilities');
+    neuralAvailable=cap.available===true;
+    $('lstm').checked=neuralAvailable;
+    $('neural-status').textContent=neuralAvailable?'PyTorch '+cap.version+' · CPU verificada · LSTM activada automáticamente.':cap.message;
+  }catch(e){
+    $('neural-status').textContent='No se pudo comprobar PyTorch: '+e.message;
+  }finally{controls(false);}
+  await load();
+}
+boot();
