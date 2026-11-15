@@ -27,6 +27,8 @@ jobs:
           node-version: '22'
       - run: npm ci
       - run: npm run build
+      - run: node --check ../chile/web/dashboard.js
+      - run: node --check ../chile/web/lab.js
   lstm:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -37,6 +39,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
       - run: python -m unittest discover -s chile -p test_advanced.py -v
+      - run: python -m unittest discover -s chile -p test_neural_ready.py -v
       - run: python chile/advanced.py --game kino --lstm --simulations 1000
   dotnet:
     runs-on: ubuntu-latest
